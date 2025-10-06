@@ -45,7 +45,7 @@ pub struct ApiTransaction {
     // Detailed fields (optional; present for detail view)
     pub vin: Option<serde_json::Value>,
     pub vout: Option<serde_json::Value>,
-    pub version: Option<i32>,
+    pub version: Option<u32>,
     pub locktime: Option<u32>,
 }
 
