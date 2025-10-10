@@ -223,6 +223,19 @@ pub async fn commit_tx_to_cmempoold(
         }
     };
 
+    // Check if already in cmempool
+    if let Ok(_) = committed.get_mempool_entry(&txid) {
+        return (
+            StatusCode::OK,
+            Json(json!({
+                "status":"ok",
+                "txid":txid.to_string(),
+                "message":"transaction already in cmempool"
+            })),
+        );
+    }
+
+    // Get transaction from bitcoind
     let tx: Transaction = match standard.get_raw_transaction(&txid, None) {
         Ok(t) => t,
         Err(e) => {
@@ -233,15 +246,41 @@ pub async fn commit_tx_to_cmempoold(
         }
     };
 
+    // Get blockchain heights for diagnostics
+    let std_height = standard.get_block_count().unwrap_or(0);
+    let cm_height = committed.get_block_count().unwrap_or(0);
+
+    // Try to send to cmempool
     match committed.send_raw_transaction(&tx) {
         Ok(sent) => (
             StatusCode::OK,
-            Json(json!({"status":"ok","txid":sent.to_string()})),
+            Json(json!({
+                "status":"ok",
+                "txid":sent.to_string(),
+                "message":"transaction committed to cmempool"
+            })),
         ),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(json!({"status":"error","error":e.to_string()})),
-        ),
+        Err(e) => {
+            let error_str = e.to_string();
+            
+            // Provide helpful diagnostics
+            let mut diagnostics = json!({
+                "error": error_str.clone(),
+                "bitcoind_height": std_height,
+                "cmempool_height": cm_height,
+            });
+
+            // Check if this is a missing inputs error
+            if error_str.contains("-25") || error_str.contains("missing inputs") || error_str.contains("bad-txns-inputs-missingorspent") {
+                diagnostics["hint"] = json!("The cmempool node is missing the UTXOs (inputs) this transaction tries to spend. This usually means the nodes aren't synchronized. Try: 1) Check if both nodes have the same block height, 2) If cmempool is behind, it may need to sync blocks from bitcoind, 3) You may need to invalidate and reconsider blocks to force sync.");
+                diagnostics["possible_cause"] = json!("Blockchain state mismatch between nodes");
+            }
+
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"status":"error","diagnostics":diagnostics})),
+            )
+        },
     }
 }
 
