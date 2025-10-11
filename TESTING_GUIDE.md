@@ -180,6 +180,8 @@ curl -s -X POST http://localhost:3000/beads/commit/{TXID} | jq
 
 ### Test 1: Create Transaction in Each Category
 
+> ⚠️ **PREREQUISITE**: Make sure you created the wallet in Step 3 above!
+
 **Replace `{ADDRESS}` with actual address or use:** `bcrt1qa2sr0ehdyp48a5t74uxaexpd90em43vqxt4djy`
 
 ```bash
@@ -484,8 +486,15 @@ After running the complete test, you should see:
 
 ## Troubleshooting
 
-### Issue: "Transaction not found"
-**Solution:** Make sure bitcoind node is running and has the wallet loaded.
+### Issue: "Transaction not found" or "Wallet jevinwallet not found"
+**Solution:** You forgot to create the wallet! Go back to **Setup Step 3** and run:
+```bash
+bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+  createwallet "jevinwallet" false false "" false false true
+
+bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+  -rpcwallet=jevinwallet -generate 101
+```
 
 ### Issue: Error -25 "Missing inputs"
 **Solution:** Nodes not synced. Run the sync script in Setup Step 2.

@@ -2,13 +2,13 @@
 
 ## ✅ Files to Include in PR
 
-### Core Application Files
+### Core Application Files (2)
 ```
 ✅ main.rs                         # API entry point
 ✅ api.rs                          # Transaction management logic
 ```
 
-### Bitcoin Node Configuration
+### Bitcoin Node Configuration (4)
 ```
 ✅ bitcoind_node/bitcoin.conf      # Standard node configuration  
 ✅ bitcoind_node/start.sh          # Start script for bitcoind
@@ -16,9 +16,10 @@
 ✅ cmempoold_node/start.sh         # Start script for cmempoold
 ```
 
-### Documentation
+### Documentation (3)
 ```
 ✅ README.md                       # Quick start guide (MUST INCLUDE!)
+✅ FIRST_TIME_SETUP.md             # First-time setup guide (MUST INCLUDE!)
 ✅ TESTING_GUIDE.md                # Complete testing instructions
 ```
 
@@ -88,6 +89,7 @@ git status
 - `main.rs`
 - `api.rs`
 - `README.md`
+- `FIRST_TIME_SETUP.md`
 - `TESTING_GUIDE.md`
 - `bitcoind_node/bitcoin.conf`
 - `bitcoind_node/start.sh`
@@ -156,22 +158,33 @@ I've completed the 5-stage transaction management system and pushed it to branch
 - ✅ Core Rust application (`main.rs`, `api.rs`)
 - ✅ Bitcoin node configurations (bitcoind + cmempool)
 - ✅ README.md with quick start instructions
+- ✅ FIRST_TIME_SETUP.md with wallet creation steps (CRITICAL!)
 - ✅ TESTING_GUIDE.md with complete testing steps
 
-**Quick Test (Takes 2 minutes):**
+**Quick Test (Takes 3 minutes):**
 
-1. **Start nodes:**
+1. **First time? Create wallet:**
+   ```bash
+   # See FIRST_TIME_SETUP.md for complete instructions
+   bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+     createwallet "jevinwallet" false false "" false false true
+   
+   bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+     -rpcwallet=jevinwallet -generate 101
+   ```
+
+2. **Start nodes:**
    ```bash
    cd bitcoind_node && ./start.sh
    cd cmempoold_node && ./start.sh
    ```
 
-2. **Start API:**
+3. **Start API:**
    ```bash
    cargo run
    ```
 
-3. **Test all 5 categories** - Just copy-paste the test block from README.md
+4. **Test all 5 categories** - Just copy-paste the test block from README.md
 
 **Key Features:**
 - 5 transaction categories (Mempool → Committed → Proposed → Scheduled → Confirmed)
@@ -199,7 +212,7 @@ Thanks,
 ## Final Checklist Before Pushing
 
 - [ ] Deleted all temporary files (`api_v2.rs`, `*.sh` dev scripts, extra docs)
-- [ ] Only 8 files being committed (2 .rs, 2 .md, 4 node config files)
+- [ ] Only 9 files being committed (2 .rs, 3 .md, 4 node config files)
 - [ ] Ran `git status` to verify clean state
 - [ ] Tested locally that README.md instructions work
 - [ ] Commit message includes features, technical details, and testing info
@@ -211,10 +224,11 @@ Thanks,
 **✅ You're ready to push!**
 
 The mentor will have everything they need:
-1. Quick start in README.md (copy-paste commands)
-2. Complete guide in TESTING_GUIDE.md
-3. All credentials and configuration included
-4. Clear expected outputs
-5. Troubleshooting section
+1. First-time setup in FIRST_TIME_SETUP.md (wallet creation)
+2. Quick start in README.md (copy-paste commands)
+3. Complete guide in TESTING_GUIDE.md
+4. All credentials and configuration included
+5. Clear expected outputs
+6. Troubleshooting section
 
-**Total files: 8 files (perfect PR size!)**
+**Total files: 9 files (perfect PR size!)**

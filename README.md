@@ -4,7 +4,9 @@
 
 This PR implements a **5-category transaction workflow**: `Mempool` → `Committed` → `Proposed` → `Scheduled` → `Confirmed`
 
-### How to Test (3 Steps)
+### How to Test (4 Steps)
+
+> 🚨 **FIRST TIME?** Read [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md) first! The wallet doesn't exist by default.
 
 **1. Start Bitcoin Nodes**
 ```bash
@@ -17,17 +19,46 @@ cd cmempoold_node
 ./start.sh
 ```
 
-**2. Start API Server**
+**2. Create Wallet (IMPORTANT - First Time Only)**
+```bash
+# Create the wallet (only need to do this once)
+bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+  createwallet "jevinwallet" false false "" false false true
+
+# Generate 101 blocks to get spendable coins (coinbase needs 100 confirmations)
+bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+  -rpcwallet=jevinwallet -generate 101
+
+# Sync those blocks to cmempool node
+for height in {1..101}; do
+    BLOCK_HASH=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getblockhash $height)
+    BLOCK_HEX=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getblock $BLOCK_HASH 0)
+    bitcoin-cli -regtest -rpcuser=cmempoolrpc -rpcpassword=securepass456 -rpcport=19443 submitblock "$BLOCK_HEX" > /dev/null 2>&1
+done
+
+# Verify you have coins
+bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
+  -rpcwallet=jevinwallet getbalance
+# Should show: 50.00000000 (or more)
+
+echo "✅ Wallet created and funded!"
+```
+
+**3. Start API Server**
 ```bash
 # Terminal 3: Run API (from project root where main.rs is located)
 cargo run
 ```
 
-**3. Run Tests**
+**4. Run Tests**
 
 See **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for complete testing instructions.
 
 **Quick test - Create 1 transaction in each category:**
+
+> ⚠️ **IMPORTANT**: Make sure you created the wallet first (see Step 2 above)!  
+> If you see error "wallet not found", go back to Step 2.
+
 ```bash
 # Just copy-paste this entire block:
 
@@ -197,12 +228,8 @@ TESTING_GUIDE.md               # Complete testing instructions
 
 ## Troubleshooting
 
-**Problem: "Transaction not found"**
-→ Solution: Create wallet first:
-```bash
-bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 \
-  createwallet "jevinwallet" false false "" false false true
-```
+**Problem: "Wallet not found" or "Transaction not found"**
+→ Solution: You didn't create the wallet! Go to **Step 2** above and create "jevinwallet"
 
 **Problem: "Insufficient funds"**
 → Solution: Generate blocks:
