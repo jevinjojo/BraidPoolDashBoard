@@ -55,12 +55,12 @@ pub struct ApiMempoolInfo {
 pub struct EmptyRequest {}
 
 // ============================================================================
-// STATE MANAGEMENT - 4 stages
+// STATE MANAGEMENT - 4 STAGES
 // ============================================================================
 struct StateStore {
-    committed: HashSet<Txid>,   // In cmempool
-    proposed: HashSet<Txid>,    // Marked as proposed
-    scheduled: HashSet<Txid>,   // Marked as scheduled
+    committed: HashSet<Txid>,  // Stage 2: In cmempool
+    proposed: HashSet<Txid>,   // Stage 3: Marked as proposed
+    scheduled: HashSet<Txid>,  // Stage 4: Marked as scheduled
 }
 
 impl StateStore {
@@ -116,24 +116,27 @@ fn detect_category(txid: &Txid, in_std: bool, in_cpool: bool, confirmations: u32
     
     let state = STATE.lock().unwrap();
     
-    // Check stages in priority order
+    // Stage 4: Scheduled (highest priority for unconfirmed)
     if state.scheduled.contains(txid) {
         return "Scheduled".to_string();
     }
     
+    // Stage 3: Proposed
     if state.proposed.contains(txid) {
         return "Proposed".to_string();
     }
     
+    // Stage 2: Committed (in cmempool)
     if in_cpool || state.committed.contains(txid) {
         return "Committed".to_string();
     }
     
+    // Stage 1: Mempool (in bitcoind only)
     if in_std {
         return "Mempool".to_string();
     }
     
-    // Replaced heuristic
+    // Replaced
     let mut seen = SEEN.lock().unwrap();
     if seen.remove(txid).is_some() {
         return "Replaced".to_string();
@@ -253,7 +256,7 @@ pub async fn get_transactions() -> Json<Vec<ApiTransaction>> {
 }
 
 // ============================================================================
-// STAGE 1 → 2: Mempool → Committed (send to cmempool)
+// STAGE 1 → 2: Mempool → Committed
 // ============================================================================
 pub async fn commit_transaction(
     Path(txid): Path<String>,
@@ -295,7 +298,6 @@ pub async fn commit_transaction(
         }
     };
 
-    // Get blockchain heights
     let std_height = standard.get_block_count().unwrap_or(0);
     let cm_height = committed.get_block_count().unwrap_or(0);
 
@@ -320,11 +322,8 @@ pub async fn commit_transaction(
                 "cmempool_height": cm_height,
             });
 
-            if error_str.contains("-25") 
-                || error_str.contains("missing inputs") 
-                || error_str.contains("bad-txns-inputs-missingorspent")
-            {
-                diagnostics["hint"] = json!("Nodes not synchronized. Check block heights match.");
+            if error_str.contains("-25") || error_str.contains("missing inputs") {
+                diagnostics["hint"] = json!("Nodes not synchronized");
             }
 
             (
@@ -354,19 +353,21 @@ pub async fn propose_transaction(
         }
     };
 
-    // Must be in Committed stage
-    if !STATE.lock().unwrap().committed.contains(&txid) {
-        // Check if actually in cmempool
+    // Must be committed first
+    let state = STATE.lock().unwrap();
+    if !state.committed.contains(&txid) {
+        // Check if in cmempool
         if committed.get_mempool_entry(&txid).is_err() {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(json!({
                     "status":"error",
-                    "error":"Transaction must be committed first. Use POST /transactions/{txid}/commit"
+                    "error":"Transaction must be committed first"
                 })),
             );
         }
     }
+    drop(state);
 
     STATE.lock().unwrap().proposed.insert(txid);
 
@@ -396,13 +397,13 @@ pub async fn schedule_transaction(
         }
     };
 
-    // Must be in Proposed stage
+    // Must be proposed first
     if !STATE.lock().unwrap().proposed.contains(&txid) {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "status":"error",
-                "error":"Transaction must be proposed first. Use POST /transactions/{txid}/propose"
+                "error":"Transaction must be proposed first"
             })),
         );
     }
@@ -420,7 +421,7 @@ pub async fn schedule_transaction(
 }
 
 // ============================================================================
-// LEGACY: Old commit endpoint (kept for backward compatibility)
+// LEGACY: Old endpoint
 // ============================================================================
 pub async fn commit_tx_to_cmempoold(
     Path(txid): Path<String>,
@@ -488,8 +489,8 @@ pub fn build_router() -> Router {
         .route("/transactions", get(get_transactions))
         .route("/tx/{txid}", get(get_transaction_detail))
         .route("/mempool/info", get(get_mempool_info))
-        .route("/beads/commit/{txid}", post(commit_tx_to_cmempoold)) // Legacy
-        .route("/transactions/{txid}/commit", post(commit_transaction))    // Stage 1→2
-        .route("/transactions/{txid}/propose", post(propose_transaction))  // Stage 2→3
-        .route("/transactions/{txid}/schedule", post(schedule_transaction)) // Stage 3→4
+        .route("/beads/commit/{txid}", post(commit_tx_to_cmempoold))
+        .route("/transactions/{txid}/commit", post(commit_transaction))
+        .route("/transactions/{txid}/propose", post(propose_transaction))
+        .route("/transactions/{txid}/schedule", post(schedule_transaction))
 }
