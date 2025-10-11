@@ -9,9 +9,9 @@ use bitcoincore_rpc::bitcoin::{Transaction, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use futures::stream::{self, StreamExt};
 use once_cell::sync::Lazy;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -28,7 +28,7 @@ struct ApiStatus {
 pub struct ApiTransaction {
     pub txid: String,
     pub hash: String,
-    pub category: String, // Mempool | Committed | Confirmed | Replaced | Unknown
+    pub category: String, // Mempool | Proposed | Scheduled | Confirmed | Replaced | Unknown
     pub size: u64,        // vsize in vbytes
     pub weight: Option<u64>, // not available from this RPC; kept as None
     pub fee: f64,         // BTC
@@ -51,6 +51,29 @@ pub struct ApiMempoolInfo {
     pub fee_histogram: Vec<[f64; 2]>, // [feeRate_sats_per_vB, total_vsize]
 }
 
+#[derive(Deserialize)]
+pub struct ProposeRequest {
+    pub notes: Option<String>,
+}
+
+// ============================================================================
+// STATE MANAGEMENT - Added for Proposed/Scheduled tracking
+// ============================================================================
+struct StateStore {
+    proposed: HashSet<Txid>,   // Transactions marked as proposed
+    scheduled: HashSet<Txid>,  // Transactions scheduled (in cmempool)
+}
+
+impl StateStore {
+    fn new() -> Self {
+        StateStore {
+            proposed: HashSet::new(),
+            scheduled: HashSet::new(),
+        }
+    }
+}
+
+static STATE: Lazy<Mutex<StateStore>> = Lazy::new(|| Mutex::new(StateStore::new()));
 static SEEN: Lazy<Mutex<HashMap<Txid, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn connect_to_bitcoind() -> Client {
@@ -85,20 +108,35 @@ fn to_btc_from_sats(sats: u64) -> f64 {
 }
 
 fn detect_category(txid: &Txid, in_std: bool, in_cpool: bool, confirmations: u32) -> String {
+    // Priority: Confirmed > Scheduled > Proposed > Mempool > Replaced > Unknown
+    
     if confirmations > 0 {
         return "Confirmed".to_string();
     }
-    if in_cpool {
-        return "Committed".to_string();
+    
+    let state = STATE.lock().unwrap();
+    
+    // If in cmempool, it's scheduled
+    if in_cpool || state.scheduled.contains(txid) {
+        return "Scheduled".to_string();
     }
+    
+    // If marked as proposed
+    if state.proposed.contains(txid) {
+        return "Proposed".to_string();
+    }
+    
+    // If in bitcoind mempool only
     if in_std {
         return "Mempool".to_string();
     }
+    
     // Replaced heuristic: seen before, now gone from both mempools, still unconfirmed
     let mut seen = SEEN.lock().unwrap();
     if seen.remove(txid).is_some() {
         return "Replaced".to_string();
     }
+    
     "Unknown".to_string()
 }
 
@@ -158,6 +196,13 @@ fn build_tx(txid: Txid, standard: &Client, committed: &Client) -> ApiTransaction
     let ts = ts_mempool_time.or(block_time).unwrap_or_else(now_ts);
     record_seen(&txid, in_std || in_cpool, ts);
 
+    // Cleanup state if confirmed
+    if confirmations > 0 {
+        let mut state = STATE.lock().unwrap();
+        state.proposed.remove(&txid);
+        state.scheduled.remove(&txid);
+    }
+
     ApiTransaction {
         txid: txid.to_string(),
         hash: txid.to_string(),
@@ -207,6 +252,160 @@ pub async fn get_transactions() -> Json<Vec<ApiTransaction>> {
     Json(results)
 }
 
+// ============================================================================
+// NEW: Propose Transaction (Mempool → Proposed)
+// ============================================================================
+pub async fn propose_transaction(
+    Path(txid): Path<String>,
+    Json(_payload): Json<ProposeRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let standard = connect_to_bitcoind();
+
+    let txid = match txid.parse::<Txid>() {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"status":"error","error":format!("invalid txid: {e}")})),
+            )
+        }
+    };
+
+    // Check if transaction exists in bitcoind mempool
+    if standard.get_mempool_entry(&txid).is_err() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "status":"error",
+                "error":"Transaction not found in mempool"
+            })),
+        );
+    }
+
+    // Mark as proposed
+    STATE.lock().unwrap().proposed.insert(txid);
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status":"ok",
+            "txid":txid.to_string(),
+            "message":"Transaction proposed"
+        })),
+    )
+}
+
+// ============================================================================
+// NEW: Schedule Transaction (Proposed → Scheduled)
+// This replaces the old "commit" but requires proposal first
+// ============================================================================
+pub async fn schedule_transaction(
+    Path(txid): Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let standard = connect_to_bitcoind();
+    let committed = connect_to_cmempoold();
+
+    let txid = match txid.parse::<Txid>() {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"status":"error","error":format!("invalid txid: {e}")})),
+            )
+        }
+    };
+
+    // Check if transaction is proposed
+    if !STATE.lock().unwrap().proposed.contains(&txid) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "status":"error",
+                "error":"Transaction must be proposed first. Use POST /transactions/{txid}/propose"
+            })),
+        );
+    }
+
+    // Check if already in cmempool
+    if let Ok(_) = committed.get_mempool_entry(&txid) {
+        let mut state = STATE.lock().unwrap();
+        state.proposed.remove(&txid);
+        state.scheduled.insert(txid);
+        
+        return (
+            StatusCode::OK,
+            Json(json!({
+                "status":"ok",
+                "txid":txid.to_string(),
+                "message":"Transaction already scheduled"
+            })),
+        );
+    }
+
+    // Get transaction from bitcoind
+    let tx: Transaction = match standard.get_raw_transaction(&txid, None) {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "status":"error",
+                    "error":format!("Transaction not found: {e}")
+                })),
+            )
+        }
+    };
+
+    // Get blockchain heights for diagnostics
+    let std_height = standard.get_block_count().unwrap_or(0);
+    let cm_height = committed.get_block_count().unwrap_or(0);
+
+    // Send to cmempool
+    match committed.send_raw_transaction(&tx) {
+        Ok(_) => {
+            // Update state: remove from proposed, add to scheduled
+            let mut state = STATE.lock().unwrap();
+            state.proposed.remove(&txid);
+            state.scheduled.insert(txid);
+
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status":"ok",
+                    "txid":txid.to_string(),
+                    "message":"Transaction scheduled successfully"
+                })),
+            )
+        }
+        Err(e) => {
+            let error_str = e.to_string();
+            
+            let mut diagnostics = json!({
+                "error": error_str.clone(),
+                "bitcoind_height": std_height,
+                "cmempool_height": cm_height,
+            });
+
+            if error_str.contains("-25")
+                || error_str.contains("missing inputs")
+                || error_str.contains("bad-txns-inputs-missingorspent")
+            {
+                diagnostics["hint"] = json!("The cmempool node is missing the UTXOs (inputs) this transaction tries to spend. This usually means the nodes aren't synchronized. Try: 1) Check if both nodes have the same block height, 2) If cmempool is behind, it may need to sync blocks from bitcoind, 3) You may need to invalidate and reconsider blocks to force sync.");
+                diagnostics["possible_cause"] = json!("Blockchain state mismatch between nodes");
+            }
+
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"status":"error","diagnostics":diagnostics})),
+            )
+        }
+    }
+}
+
+// ============================================================================
+// LEGACY: Old commit endpoint (kept for backward compatibility)
+// Now it just proposes + schedules in one step
+// ============================================================================
 pub async fn commit_tx_to_cmempoold(
     Path(txid): Path<String>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -225,6 +424,7 @@ pub async fn commit_tx_to_cmempoold(
 
     // Check if already in cmempool
     if let Ok(_) = committed.get_mempool_entry(&txid) {
+        STATE.lock().unwrap().scheduled.insert(txid);
         return (
             StatusCode::OK,
             Json(json!({
@@ -252,17 +452,22 @@ pub async fn commit_tx_to_cmempoold(
 
     // Try to send to cmempool
     match committed.send_raw_transaction(&tx) {
-        Ok(sent) => (
-            StatusCode::OK,
-            Json(json!({
-                "status":"ok",
-                "txid":sent.to_string(),
-                "message":"transaction committed to cmempool"
-            })),
-        ),
+        Ok(sent) => {
+            // Mark as scheduled (skip proposed step)
+            STATE.lock().unwrap().scheduled.insert(txid);
+            
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status":"ok",
+                    "txid":sent.to_string(),
+                    "message":"transaction committed to cmempool"
+                })),
+            )
+        }
         Err(e) => {
             let error_str = e.to_string();
-            
+
             // Provide helpful diagnostics
             let mut diagnostics = json!({
                 "error": error_str.clone(),
@@ -271,7 +476,10 @@ pub async fn commit_tx_to_cmempoold(
             });
 
             // Check if this is a missing inputs error
-            if error_str.contains("-25") || error_str.contains("missing inputs") || error_str.contains("bad-txns-inputs-missingorspent") {
+            if error_str.contains("-25")
+                || error_str.contains("missing inputs")
+                || error_str.contains("bad-txns-inputs-missingorspent")
+            {
                 diagnostics["hint"] = json!("The cmempool node is missing the UTXOs (inputs) this transaction tries to spend. This usually means the nodes aren't synchronized. Try: 1) Check if both nodes have the same block height, 2) If cmempool is behind, it may need to sync blocks from bitcoind, 3) You may need to invalidate and reconsider blocks to force sync.");
                 diagnostics["possible_cause"] = json!("Blockchain state mismatch between nodes");
             }
@@ -280,7 +488,7 @@ pub async fn commit_tx_to_cmempoold(
                 StatusCode::BAD_REQUEST,
                 Json(json!({"status":"error","diagnostics":diagnostics})),
             )
-        },
+        }
     }
 }
 
@@ -345,5 +553,7 @@ pub fn build_router() -> Router {
         .route("/transactions", get(get_transactions))
         .route("/tx/{txid}", get(get_transaction_detail))
         .route("/mempool/info", get(get_mempool_info))
-        .route("/beads/commit/{txid}", post(commit_tx_to_cmempoold))
+        .route("/beads/commit/{txid}", post(commit_tx_to_cmempoold)) // Legacy endpoint
+        .route("/transactions/{txid}/propose", post(propose_transaction)) // NEW
+        .route("/transactions/{txid}/schedule", post(schedule_transaction)) // NEW
 }
