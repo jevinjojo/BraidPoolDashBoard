@@ -41,9 +41,12 @@ cargo run
 **Expected output:**
 ```
 Standard node block count: 101
-Committed node block count: 101
+Committed node block count: 101   ← MUST be same as Standard!
 API running at http://127.0.0.1:3000
 ```
+
+**✅ If both show 101:** Nodes are synced, ready to test!  
+**❌ If different (e.g., 101 vs 0):** Run the sync script in step 3 above!
 
 ---
 

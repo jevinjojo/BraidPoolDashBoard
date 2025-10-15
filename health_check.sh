@@ -32,15 +32,20 @@ else
 fi
 
 # Check sync
+STD_COUNT=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getblockcount 2>/dev/null)
+CM_COUNT=$(bitcoin-cli -regtest -rpcuser=cmempoolrpc -rpcpassword=securepass456 -rpcport=19443 getblockcount 2>/dev/null)
 STD_HASH=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getbestblockhash 2>/dev/null)
 CM_HASH=$(bitcoin-cli -regtest -rpcuser=cmempoolrpc -rpcpassword=securepass456 -rpcport=19443 getbestblockhash 2>/dev/null)
 
 if [ "$STD_HASH" == "$CM_HASH" ]; then
-    echo "✅ Nodes synchronized"
+    echo "✅ Nodes synchronized (both at height $STD_COUNT)"
 else
     echo "❌ Nodes NOT synchronized"
-    echo "   Bitcoind:  $STD_HASH"
-    echo "   Cmempool:  $CM_HASH"
+    echo "   Bitcoind:  height $STD_COUNT, hash $STD_HASH"
+    echo "   Cmempool:  height $CM_COUNT, hash $CM_HASH"
+    echo ""
+    echo "⚠️  CRITICAL: Both nodes must have same block count!"
+    echo "   Run the sync script in FIRST_TIME_SETUP.md (step 2)"
     exit 1
 fi
 
