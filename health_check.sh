@@ -31,21 +31,36 @@ else
     exit 1
 fi
 
-# Check sync
+# Check sync (both height AND hash)
 STD_COUNT=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getblockcount 2>/dev/null)
 CM_COUNT=$(bitcoin-cli -regtest -rpcuser=cmempoolrpc -rpcpassword=securepass456 -rpcport=19443 getblockcount 2>/dev/null)
 STD_HASH=$(bitcoin-cli -regtest -rpcuser=jevinrpc -rpcpassword=securepass123 -rpcport=18332 getbestblockhash 2>/dev/null)
 CM_HASH=$(bitcoin-cli -regtest -rpcuser=cmempoolrpc -rpcpassword=securepass456 -rpcport=19443 getbestblockhash 2>/dev/null)
 
-if [ "$STD_HASH" == "$CM_HASH" ]; then
-    echo "✅ Nodes synchronized (both at height $STD_COUNT)"
+# Check both height and hash
+if [ "$STD_COUNT" == "$CM_COUNT" ] && [ "$STD_HASH" == "$CM_HASH" ]; then
+    echo "✅ Nodes synchronized"
+    echo "   Height: $STD_COUNT"
+    echo "   Hash:   $STD_HASH"
 else
     echo "❌ Nodes NOT synchronized"
-    echo "   Bitcoind:  height $STD_COUNT, hash $STD_HASH"
-    echo "   Cmempool:  height $CM_COUNT, hash $CM_HASH"
     echo ""
-    echo "⚠️  CRITICAL: Both nodes must have same block count!"
-    echo "   Run the sync script in FIRST_TIME_SETUP.md (step 2)"
+    echo "   Bitcoind:"
+    echo "     Height: $STD_COUNT"
+    echo "     Hash:   $STD_HASH"
+    echo ""
+    echo "   Cmempool:"
+    echo "     Height: $CM_COUNT"
+    echo "     Hash:   $CM_HASH"
+    echo ""
+    if [ "$STD_COUNT" != "$CM_COUNT" ]; then
+        echo "⚠️  Block heights differ! ($STD_COUNT vs $CM_COUNT)"
+    fi
+    if [ "$STD_HASH" != "$CM_HASH" ]; then
+        echo "⚠️  Block hashes differ! Different chains!"
+    fi
+    echo ""
+    echo "🔧 Fix: Run the sync script in FIRST_TIME_SETUP.md (step 2)"
     exit 1
 fi
 
