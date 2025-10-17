@@ -373,7 +373,7 @@ mod histogram_tests {
 
     #[test]
     fn test_fee_bucketing() {
-        let fee_rates = vec![1.2, 1.7, 5.3, 5.8, 10.1, 10.9];
+        let fee_rates: Vec<f64> = vec![1.2, 1.7, 5.3, 5.8, 10.1, 10.9];
         let mut histogram: BTreeMap<u64, u64> = BTreeMap::new();
 
         for rate in fee_rates {
