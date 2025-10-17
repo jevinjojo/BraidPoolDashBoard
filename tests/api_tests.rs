@@ -1,11 +1,6 @@
 // Integration tests for API endpoints
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-    Router,
-};
-use serde_json::{json, Value};
-use tower::ServiceExt; // for `oneshot` and `ready`
+use axum::Router;
+use serde_json::json;
 
 // Mock the api module functions for testing
 // Note: In a real setup, you'd use the actual api module
@@ -13,10 +8,12 @@ use tower::ServiceExt; // for `oneshot` and `ready`
 
 #[cfg(test)]
 mod api_endpoint_tests {
+    #[allow(unused_imports)]
     use super::*;
 
     /// Helper function to create a test router
     /// You would import your actual build_router() here
+    #[allow(dead_code)]
     fn create_test_router() -> Router {
         // This should be: api::build_router()
         // For now, placeholder - you'll need to import from your main crate
@@ -82,7 +79,7 @@ mod api_endpoint_tests {
 
     #[tokio::test]
     async fn test_invalid_state_transitions() {
-        // Test invalid state transitions
+        // Test invalid state transitions (skipping states)
         let invalid_transitions = vec![
             ("Mempool", "Proposed"),    // Must commit first
             ("Mempool", "Scheduled"),   // Must commit and propose first
@@ -91,7 +88,7 @@ mod api_endpoint_tests {
 
         for (from, to) in invalid_transitions {
             assert!(
-                !is_valid_transition_skip(from, to),
+                !is_valid_transition(from, to),
                 "Transition from {} to {} should be invalid",
                 from,
                 to
@@ -156,7 +153,7 @@ mod api_endpoint_tests {
         );
     }
 
-    // Helper functions for tests
+    // Helper function for tests
     fn is_valid_transition(from: &str, to: &str) -> bool {
         matches!(
             (from, to),
@@ -167,21 +164,10 @@ mod api_endpoint_tests {
                 | (_, "Confirmed") // Any state can go to Confirmed
         )
     }
-
-    fn is_valid_transition_skip(from: &str, to: &str) -> bool {
-        // Returns true only if skipping intermediate states is allowed (it's not)
-        matches!(
-            (from, to),
-            ("Mempool", "Proposed")
-                | ("Mempool", "Scheduled")
-                | ("Committed", "Scheduled")
-        )
-    }
 }
 
 #[cfg(test)]
 mod category_detection_tests {
-    use super::*;
 
     #[test]
     fn test_category_confirmed_takes_priority() {
@@ -197,8 +183,8 @@ mod category_detection_tests {
     fn test_category_scheduled_priority() {
         // Test: Scheduled comes before Proposed and Committed when unconfirmed
         let in_scheduled = true;
-        let in_proposed = true;
-        let in_committed = true;
+        let _in_proposed = true;
+        let _in_committed = true;
         let confirmations = 0;
 
         // Even if in all states, scheduled takes priority
@@ -214,7 +200,7 @@ mod category_detection_tests {
     fn test_category_proposed_priority() {
         // Test: Proposed comes before Committed when unconfirmed
         let in_proposed = true;
-        let in_committed = true;
+        let _in_committed = true;
         let in_scheduled = false;
         let confirmations = 0;
 
@@ -294,7 +280,6 @@ mod category_detection_tests {
 
 #[cfg(test)]
 mod transaction_building_tests {
-    use super::*;
 
     #[test]
     fn test_fee_rate_calculation() {
@@ -377,7 +362,6 @@ mod transaction_building_tests {
 
 #[cfg(test)]
 mod mempool_info_tests {
-    use super::*;
 
     #[test]
     fn test_fee_histogram_bucketing() {
@@ -428,7 +412,6 @@ mod mempool_info_tests {
 
 #[cfg(test)]
 mod error_handling_tests {
-    use super::*;
 
     #[test]
     fn test_invalid_txid_format() {
@@ -492,7 +475,6 @@ mod error_handling_tests {
 
 #[cfg(test)]
 mod state_management_tests {
-    use super::*;
 
     #[test]
     fn test_state_cleanup_on_confirmation() {

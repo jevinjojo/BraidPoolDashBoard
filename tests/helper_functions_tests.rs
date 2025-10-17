@@ -247,9 +247,9 @@ mod validation_tests {
         amount >= 0.0
     }
 
-    fn is_valid_confirmations(confirmations: u32) -> bool {
-        // Confirmations are always non-negative
-        confirmations >= 0
+    fn is_valid_confirmations(_confirmations: u32) -> bool {
+        // Confirmations are always non-negative (u32 cannot be negative)
+        true
     }
 }
 
