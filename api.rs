@@ -9,18 +9,17 @@ use bitcoincore_rpc::bitcoin::{Transaction, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use futures::stream::{self, StreamExt};
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-#[derive(Serialize)]
-struct ApiStatus {
-    confirmed: bool,
-    block_height: Option<u64>,
-    block_hash: Option<String>,
-    block_time: Option<u64>,
+use std::time::{SystemTime,#[derive(Serialize)]
+pub struct ApiStatus {
+    pub confirmed: bool,
+    pub block_height: Option<u64>,
+    pub block_hash: Option<String>,
+    pub block_time: Option<u64>,
+}k_time: Option<u64>,
 }
 
 #[derive(Serialize)]
