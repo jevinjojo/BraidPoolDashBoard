@@ -80,8 +80,8 @@ describe('TransactionTable - Tailwind Tests', () => {
         it('renders transaction rows with correct data', () => {
             render(<TransactionTable transactions={mockTransactions} />);
             
-            // Check if truncated hash is displayed (first 8 + ... + last 8)
-            expect(screen.getByText(/abc123de\.\.\./)).toBeInTheDocument();
+            // Check if truncated hash is displayed
+            expect(screen.getByText('abc123de...f456abc1')).toBeInTheDocument();
             
             // Check if fee is displayed correctly (8 decimal places)
             expect(screen.getByText('0.00001000')).toBeInTheDocument();
@@ -143,9 +143,9 @@ describe('TransactionTable - Tailwind Tests', () => {
             const filterButton = screen.getByText(/Select categories/);
             fireEvent.click(filterButton);
             
-            // Check if dropdown menu appears with checkboxes
-            const checkboxes = screen.getAllByRole('checkbox');
-            expect(checkboxes.length).toBeGreaterThan(0);
+            // Check if dropdown menu appears by looking for title attribute
+            expect(screen.getByTitle('Transactions in bitcoind mempool only')).toBeInTheDocument();
+            expect(screen.getByTitle('Transactions committed to cmempool node')).toBeInTheDocument();
         });
 
         it('filters transactions by selected category', () => {
@@ -171,8 +171,9 @@ describe('TransactionTable - Tailwind Tests', () => {
         it('truncates hash correctly', () => {
             render(<TransactionTable transactions={mockTransactions} />);
             
-            // Check for truncated format with ellipsis
-            expect(screen.getByText(/abc123de\.\.\./)).toBeInTheDocument();
+            // Check for truncated format: first 8 chars + ... + last 8 chars
+            // Actual output is: abc123de...f456abc1
+            expect(screen.getByText('abc123de...f456abc1')).toBeInTheDocument();
         });
 
         it('formats fee to 8 decimal places', () => {
@@ -228,7 +229,10 @@ describe('TransactionTable - Tailwind Tests', () => {
         it('displays confirmation badge correctly', () => {
             const confirmedTx = [{
                 ...mockTransactions[1],
-                confirmations: 10
+                txid: 'unique-tx-id',
+                confirmations: 10,
+                inputs: 5,  // Unique number to avoid conflicts
+                outputs: 7
             }];
             render(<TransactionTable transactions={confirmedTx} />);
             

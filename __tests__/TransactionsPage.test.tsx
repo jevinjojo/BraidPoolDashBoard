@@ -30,7 +30,7 @@ const mockFetchRecentTransactions = vi.fn();
 
 vi.mock('@/utils/braidpoolApi', () => ({
     braidpoolApi: {
-        fetchRecentTransactions: mockFetchRecentTransactions,
+        fetchRecentTransactions: (...args: any[]) => mockFetchRecentTransactions(...args),
     },
 }));
 
