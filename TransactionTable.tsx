@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -18,20 +18,20 @@ import {
   MenuItem,
   OutlinedInput,
   SelectChangeEvent,
-} from '@mui/material';
-import Card from '../common/Card';
+} from "@mui/material";
+import Card from "../common/Card";
 import {
   TransactionCategory,
   TRANSACTION_CATEGORY_LABELS,
   TRANSACTION_CATEGORY_DESCRIPTIONS,
-  BraidPoolTransaction
-} from '../../types/transaction';
+  BraidPoolTransaction,
+} from "../../types/transaction";
 
 let colors: any = {};
 try {
-  colors = require('../../theme/colors').default || {};
+  colors = require("../../theme/colors").default || {};
 } catch (error) {
-  console.warn('Could not load colors theme, using fallbacks');
+  console.warn("Could not load colors theme, using fallbacks");
 }
 
 interface TransactionTableProps {
@@ -44,36 +44,39 @@ interface TransactionTableProps {
 }
 
 const DEFAULT_COLORS = {
-  primary: '#1976d2',
-  secondary: '#ff9800',
-  success: '#4caf50',
-  warning: '#ff9800',
-  error: '#f44336',
-  info: '#2196f3',
-  paper: '#1e1e1e',
-  textPrimary: '#ffffff',
-  textSecondary: '#b0b0b0',
-  accent: '#2196f3',
-  cardAccentPrimary: '#1976d2',
-  grey: '#9e9e9e'
+  primary: "#1976d2",
+  secondary: "#ff9800",
+  success: "#4caf50",
+  warning: "#ff9800",
+  error: "#f44336",
+  info: "#2196f3",
+  paper: "#1e1e1e",
+  textPrimary: "#ffffff",
+  textSecondary: "#b0b0b0",
+  accent: "#2196f3",
+  cardAccentPrimary: "#1976d2",
+  grey: "#9e9e9e",
 };
 
-const getSafeColor = (colorPath: string, fallback: string = '#ffffff'): string => {
+const getSafeColor = (
+  colorPath: string,
+  fallback: string = "#ffffff",
+): string => {
   try {
-    const paths = colorPath.split('.');
+    const paths = colorPath.split(".");
     let value = colors;
 
     for (const path of paths) {
-      if (value && typeof value === 'object' && path in value) {
+      if (value && typeof value === "object" && path in value) {
         value = value[path];
       } else {
         return fallback;
       }
     }
 
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object' && value.main) return value.main;
-    if (value && typeof value === 'object' && value[500]) return value[500];
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object" && value.main) return value.main;
+    if (value && typeof value === "object" && value[500]) return value[500];
 
     return fallback;
   } catch (error) {
@@ -82,18 +85,21 @@ const getSafeColor = (colorPath: string, fallback: string = '#ffffff'): string =
 };
 
 const safeColors = {
-  primary: getSafeColor('primary', DEFAULT_COLORS.primary),
-  secondary: getSafeColor('secondary', DEFAULT_COLORS.secondary),
-  success: getSafeColor('success', DEFAULT_COLORS.success),
-  warning: getSafeColor('warning', DEFAULT_COLORS.warning),
-  error: getSafeColor('error', DEFAULT_COLORS.error),
-  info: getSafeColor('info', DEFAULT_COLORS.info),
-  paper: getSafeColor('paper', DEFAULT_COLORS.paper),
-  textPrimary: getSafeColor('textPrimary', DEFAULT_COLORS.textPrimary),
-  textSecondary: getSafeColor('textSecondary', DEFAULT_COLORS.textSecondary),
-  accent: getSafeColor('accent', DEFAULT_COLORS.accent),
-  cardAccentPrimary: getSafeColor('cardAccentPrimary', DEFAULT_COLORS.cardAccentPrimary),
-  grey: getSafeColor('grey', DEFAULT_COLORS.grey)
+  primary: getSafeColor("primary", DEFAULT_COLORS.primary),
+  secondary: getSafeColor("secondary", DEFAULT_COLORS.secondary),
+  success: getSafeColor("success", DEFAULT_COLORS.success),
+  warning: getSafeColor("warning", DEFAULT_COLORS.warning),
+  error: getSafeColor("error", DEFAULT_COLORS.error),
+  info: getSafeColor("info", DEFAULT_COLORS.info),
+  paper: getSafeColor("paper", DEFAULT_COLORS.paper),
+  textPrimary: getSafeColor("textPrimary", DEFAULT_COLORS.textPrimary),
+  textSecondary: getSafeColor("textSecondary", DEFAULT_COLORS.textSecondary),
+  accent: getSafeColor("accent", DEFAULT_COLORS.accent),
+  cardAccentPrimary: getSafeColor(
+    "cardAccentPrimary",
+    DEFAULT_COLORS.cardAccentPrimary,
+  ),
+  grey: getSafeColor("grey", DEFAULT_COLORS.grey),
 };
 
 const CATEGORY_COLORS: Record<TransactionCategory, string> = {
@@ -113,11 +119,13 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   autoRefresh = false,
   refreshInterval = 30000,
 }) => {
-  const [categoryFilter, setCategoryFilter] = useState<TransactionCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<TransactionCategory[]>(
+    [],
+  );
 
   const truncateHash = (hash: string) => {
-    if (!hash) return 'N/A';
-    return hash.substring(0, 8) + '...' + hash.substring(hash.length - 8);
+    if (!hash) return "N/A";
+    return hash.substring(0, 8) + "..." + hash.substring(hash.length - 8);
   };
 
   const formatFee = (fee: number) => {
@@ -129,11 +137,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   };
 
   const formatTime = (timestamp?: number) => {
-    if (!timestamp) return '-';
+    if (!timestamp) return "-";
     const now = Date.now() / 1000;
     const diff = now - timestamp;
 
-    if (diff < 60) return 'Just now';
+    if (diff < 60) return "Just now";
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
@@ -148,9 +156,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     }
   }, [autoRefresh, refreshInterval]);
 
-  const handleCategoryFilterChange = (event: SelectChangeEvent<TransactionCategory[]>) => {
+  const handleCategoryFilterChange = (
+    event: SelectChangeEvent<TransactionCategory[]>,
+  ) => {
     const value = event.target.value;
-    setCategoryFilter(typeof value === 'string' ? value.split(',') as TransactionCategory[] : value);
+    setCategoryFilter(
+      typeof value === "string"
+        ? (value.split(",") as TransactionCategory[])
+        : value,
+    );
   };
 
   const filteredTransactions = transactions.filter((tx) => {
@@ -174,15 +188,21 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             onChange={handleCategoryFilterChange}
             input={<OutlinedInput label="Category Filter" />}
             renderValue={(selected) => (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                 {selected.map((value) => (
                   <Chip
                     key={value}
-                    label={TRANSACTION_CATEGORY_LABELS[value as TransactionCategory] || 'Unknown'}
+                    label={
+                      TRANSACTION_CATEGORY_LABELS[
+                        value as TransactionCategory
+                      ] || "Unknown"
+                    }
                     size="small"
                     sx={{
                       backgroundColor: `${CATEGORY_COLORS[value as TransactionCategory] || safeColors.grey}20`,
-                      color: CATEGORY_COLORS[value as TransactionCategory] || safeColors.grey,
+                      color:
+                        CATEGORY_COLORS[value as TransactionCategory] ||
+                        safeColors.grey,
                     }}
                   />
                 ))}
@@ -192,7 +212,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             {Object.values(TransactionCategory).map((category) => (
               <MenuItem key={category} value={category}>
                 <Chip
-                  label={TRANSACTION_CATEGORY_LABELS[category] || 'Unknown'}
+                  label={TRANSACTION_CATEGORY_LABELS[category] || "Unknown"}
                   size="small"
                   sx={{
                     backgroundColor: `${CATEGORY_COLORS[category] || safeColors.grey}20`,
@@ -200,8 +220,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                     mr: 1,
                   }}
                 />
-                <Tooltip title={TRANSACTION_CATEGORY_DESCRIPTIONS[category] || 'No description available'}>
-                  <Typography variant="body2">{TRANSACTION_CATEGORY_LABELS[category] || 'Unknown'}</Typography>
+                <Tooltip
+                  title={
+                    TRANSACTION_CATEGORY_DESCRIPTIONS[category] ||
+                    "No description available"
+                  }
+                >
+                  <Typography variant="body2">
+                    {TRANSACTION_CATEGORY_LABELS[category] || "Unknown"}
+                  </Typography>
                 </Tooltip>
               </MenuItem>
             ))}
@@ -218,43 +245,99 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       <TableContainer
         sx={{
           maxHeight: maxHeight,
-          '&::-webkit-scrollbar': {
-            width: '8px',
+          "&::-webkit-scrollbar": {
+            width: "8px",
           },
-          '&::-webkit-scrollbar-track': {
+          "&::-webkit-scrollbar-track": {
             background: safeColors.paper,
           },
-          '&::-webkit-scrollbar-thumb': {
+          "&::-webkit-scrollbar-thumb": {
             background: safeColors.primary,
-            borderRadius: '4px',
+            borderRadius: "4px",
           },
         }}
       >
         <Table size="medium" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold', minWidth: 120 }}>
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                  minWidth: 120,
+                }}
+              >
                 Hash
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold', minWidth: 100 }}>
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                  minWidth: 100,
+                }}
+              >
                 Category
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="right"
+              >
                 Size (vB)
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="right"
+              >
                 Fee (BTC)
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="right"
+              >
                 Fee Rate (sats/vB)
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="center">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="center"
+              >
                 In/Out
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="center">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="center"
+              >
                 Confirms
               </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
+              <TableCell
+                sx={{
+                  backgroundColor: safeColors.paper,
+                  color: safeColors.textPrimary,
+                  fontWeight: "bold",
+                }}
+                align="right"
+              >
                 Time
               </TableCell>
             </TableRow>
@@ -268,7 +351,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
               </TableRow>
             ) : filteredTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4, color: safeColors.textSecondary }}>
+                <TableCell
+                  colSpan={8}
+                  align="center"
+                  sx={{ py: 4, color: safeColors.textSecondary }}
+                >
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -277,65 +364,116 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                 <TableRow
                   key={transaction.txid || `tx-${Math.random()}`}
                   sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    "&:hover": {
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
                     },
-                    transition: 'background-color 0.2s ease',
+                    transition: "background-color 0.2s ease",
                   }}
                 >
-                  <TableCell sx={{ color: safeColors.accent, fontFamily: 'monospace' }}>
+                  <TableCell
+                    sx={{ color: safeColors.accent, fontFamily: "monospace" }}
+                  >
                     {truncateHash(transaction.txid)}
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={transaction.category ? TRANSACTION_CATEGORY_LABELS[transaction.category] || 'Unknown' : 'Unknown'}
+                      label={
+                        transaction.category
+                          ? TRANSACTION_CATEGORY_LABELS[transaction.category] ||
+                            "Unknown"
+                          : "Unknown"
+                      }
                       size="small"
                       sx={{
-                        backgroundColor: transaction.category ?
-                          `${CATEGORY_COLORS[transaction.category] || safeColors.grey}20` :
-                          `${safeColors.grey}20`,
-                        color: transaction.category ?
-                          CATEGORY_COLORS[transaction.category] || safeColors.grey :
-                          safeColors.grey,
-                        fontWeight: 'bold',
+                        backgroundColor: transaction.category
+                          ? `${CATEGORY_COLORS[transaction.category] || safeColors.grey}20`
+                          : `${safeColors.grey}20`,
+                        color: transaction.category
+                          ? CATEGORY_COLORS[transaction.category] ||
+                            safeColors.grey
+                          : safeColors.grey,
+                        fontWeight: "bold",
                       }}
                     />
                   </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.textPrimary, fontFamily: 'monospace' }}>
-                    {transaction.size ? transaction.size.toLocaleString() : '-'}
+                  <TableCell
+                    align="right"
+                    sx={{
+                      color: safeColors.textPrimary,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {transaction.size ? transaction.size.toLocaleString() : "-"}
                   </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.secondary, fontFamily: 'monospace' }}>
-                    {transaction.fee ? formatFee(transaction.fee) : '-'}
+                  <TableCell
+                    align="right"
+                    sx={{
+                      color: safeColors.secondary,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {transaction.fee ? formatFee(transaction.fee) : "-"}
                   </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.warning, fontFamily: 'monospace' }}>
-                    {transaction.feeRate ? formatFeeRate(transaction.feeRate) : '-'}
+                  <TableCell
+                    align="right"
+                    sx={{ color: safeColors.warning, fontFamily: "monospace" }}
+                  >
+                    {transaction.feeRate
+                      ? formatFeeRate(transaction.feeRate)
+                      : "-"}
                   </TableCell>
-                  <TableCell align="center" sx={{ color: safeColors.textPrimary }}>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.info }}>
-                      {transaction.inputs || '?'}
+                  <TableCell
+                    align="center"
+                    sx={{ color: safeColors.textPrimary }}
+                  >
+                    <Typography
+                      variant="body2"
+                      component="span"
+                      sx={{ color: safeColors.info }}
+                    >
+                      {transaction.inputs || "?"}
                     </Typography>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.textSecondary, mx: 0.5 }}>
+                    <Typography
+                      variant="body2"
+                      component="span"
+                      sx={{ color: safeColors.textSecondary, mx: 0.5 }}
+                    >
                       /
                     </Typography>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.success }}>
-                      {transaction.outputs || '?'}
+                    <Typography
+                      variant="body2"
+                      component="span"
+                      sx={{ color: safeColors.success }}
+                    >
+                      {transaction.outputs || "?"}
                     </Typography>
                   </TableCell>
-                  <TableCell align="center" sx={{ color: safeColors.textPrimary }}>
+                  <TableCell
+                    align="center"
+                    sx={{ color: safeColors.textPrimary }}
+                  >
                     {transaction.confirmations ? (
                       <Chip
                         label={transaction.confirmations}
                         size="small"
-                        color={transaction.confirmations >= 6 ? 'success' : 'warning'}
+                        color={
+                          transaction.confirmations >= 6 ? "success" : "warning"
+                        }
                         variant="outlined"
                       />
                     ) : (
-                      <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: safeColors.textSecondary }}
+                      >
                         Unconfirmed
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.textSecondary }}>
+                  <TableCell
+                    align="right"
+                    sx={{ color: safeColors.textSecondary }}
+                  >
                     {formatTime(transaction.timestamp)}
                   </TableCell>
                 </TableRow>
@@ -346,9 +484,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       </TableContainer>
 
       {!loading && (
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box
+          sx={{
+            mt: 2,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
-            Showing {filteredTransactions.length} of {transactions.length} transactions
+            Showing {filteredTransactions.length} of {transactions.length}{" "}
+            transactions
           </Typography>
           <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
             {autoRefresh && `Auto-refresh every ${refreshInterval / 1000}s`}

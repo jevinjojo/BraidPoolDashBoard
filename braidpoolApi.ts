@@ -1,4 +1,7 @@
-import { BraidPoolTransaction, TransactionCategory } from '../types/transaction';
+import {
+  BraidPoolTransaction,
+  TransactionCategory,
+} from "../types/transaction";
 
 export interface BraidPoolApiConfig {
   baseUrl: string;
@@ -7,19 +10,19 @@ export interface BraidPoolApiConfig {
 }
 
 const defaultConfig: BraidPoolApiConfig = {
-  baseUrl: import.meta.env.VITE_BRAIDPOOL_API_URL || 'http://localhost:3000',
+  baseUrl: import.meta.env.VITE_BRAIDPOOL_API_URL || "http://localhost:3000",
   timeout: 10000,
-  retries: 3
+  retries: 3,
 };
 
 class BraidPoolApiError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
-    public response?: any
+    public response?: any,
   ) {
     super(message);
-    this.name = 'BraidPoolApiError';
+    this.name = "BraidPoolApiError";
   }
 }
 
@@ -62,7 +65,10 @@ class BraidPoolApi {
     this.config = { ...defaultConfig, ...config };
   }
 
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
     const url = `${this.config.baseUrl}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
@@ -72,8 +78,8 @@ class BraidPoolApi {
         ...options,
         signal: controller.signal,
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          "Content-Type": "application/json",
+          Accept: "application/json",
           ...options.headers,
         },
       });
@@ -85,7 +91,7 @@ class BraidPoolApi {
         try {
           const errorBody = await response.text();
           if (errorBody) errorMessage += ` - ${errorBody}`;
-        } catch { }
+        } catch {}
         throw new BraidPoolApiError(errorMessage, response.status);
       }
 
@@ -93,25 +99,38 @@ class BraidPoolApi {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error instanceof BraidPoolApiError) throw error;
-      if (error.name === 'AbortError') throw new BraidPoolApiError('Request timeout');
-      throw new BraidPoolApiError(error.message || 'Unknown API error', undefined, error);
+      if (error.name === "AbortError")
+        throw new BraidPoolApiError("Request timeout");
+      throw new BraidPoolApiError(
+        error.message || "Unknown API error",
+        undefined,
+        error,
+      );
     }
   }
 
-  private async retryRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async retryRequest<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
     let lastError: Error;
     for (let attempt = 0; attempt <= this.config.retries; attempt++) {
       try {
-        console.log(`🔄 BraidPool API Attempt ${attempt + 1}/${this.config.retries + 1}: ${endpoint}`);
+        console.log(
+          `🔄 BraidPool API Attempt ${attempt + 1}/${this.config.retries + 1}: ${endpoint}`,
+        );
         const result = await this.makeRequest<T>(endpoint, options);
         console.log(`✅ BraidPool API Success: ${endpoint}`);
         return result;
       } catch (error: any) {
         lastError = error;
-        console.warn(`❌ BraidPool API Attempt ${attempt + 1} failed for ${endpoint}:`, error.message);
+        console.warn(
+          `❌ BraidPool API Attempt ${attempt + 1} failed for ${endpoint}:`,
+          error.message,
+        );
         if (attempt < this.config.retries) {
           const delay = Math.pow(2, attempt) * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -119,37 +138,47 @@ class BraidPoolApi {
     throw lastError!;
   }
 
-  async fetchRecentTransactions(limit: number = 10): Promise<BraidPoolTransaction[]> {
-    const transactions = await this.retryRequest<ApiTransaction[]>('/transactions');
-    return transactions.map(tx => this.transformToBraidPoolTransaction(tx)).slice(0, limit);
+  async fetchRecentTransactions(
+    limit: number = 10,
+  ): Promise<BraidPoolTransaction[]> {
+    const transactions =
+      await this.retryRequest<ApiTransaction[]>("/transactions");
+    return transactions
+      .map((tx) => this.transformToBraidPoolTransaction(tx))
+      .slice(0, limit);
   }
 
   async fetchMempoolInfo(): Promise<ApiMempoolInfo> {
-    return await this.retryRequest<ApiMempoolInfo>('/mempool/info');
+    return await this.retryRequest<ApiMempoolInfo>("/mempool/info");
   }
 
   private normalizeCategory(category?: string): TransactionCategory {
-    const c = (category || '').toLowerCase();
-    if (c.includes('confirm')) return TransactionCategory.CONFIRMED;
-    if (c.includes('schedule')) return TransactionCategory.SCHEDULED;
-    if (c.includes('propose')) return TransactionCategory.PROPOSED;
-    if (c.includes('commit')) return TransactionCategory.COMMITTED;
-    if (c.includes('mempool')) return TransactionCategory.MEMPOOL;
-    if (c.includes('replace')) return TransactionCategory.REPLACED;
+    const c = (category || "").toLowerCase();
+    if (c.includes("confirm")) return TransactionCategory.CONFIRMED;
+    if (c.includes("schedule")) return TransactionCategory.SCHEDULED;
+    if (c.includes("propose")) return TransactionCategory.PROPOSED;
+    if (c.includes("commit")) return TransactionCategory.COMMITTED;
+    if (c.includes("mempool")) return TransactionCategory.MEMPOOL;
+    if (c.includes("replace")) return TransactionCategory.REPLACED;
     return TransactionCategory.MEMPOOL;
   }
 
-  private parseWork(work: string | number | null | undefined): { work: number; unit: string } {
-    if (work === null || work === undefined) return { work: 0, unit: 'TH' };
-    if (typeof work === 'number') return { work, unit: 'TH' };
+  private parseWork(work: string | number | null | undefined): {
+    work: number;
+    unit: string;
+  } {
+    if (work === null || work === undefined) return { work: 0, unit: "TH" };
+    if (typeof work === "number") return { work, unit: "TH" };
     const match = work.toString().match(/([\d.]+)\s*([TPE]H)?/i);
-    if (!match) return { work: 0, unit: 'TH' };
+    if (!match) return { work: 0, unit: "TH" };
     const value = parseFloat(match[1]);
-    const unit = (match[2] || 'TH').toUpperCase();
+    const unit = (match[2] || "TH").toUpperCase();
     return { work: value, unit };
   }
 
-  private transformToBraidPoolTransaction(tx: ApiTransaction): BraidPoolTransaction {
+  private transformToBraidPoolTransaction(
+    tx: ApiTransaction,
+  ): BraidPoolTransaction {
     const { work, unit } = this.parseWork(tx.work);
     return {
       txid: tx.txid,
@@ -168,7 +197,7 @@ class BraidPoolApi {
       vout: tx.vout || [],
       status: tx.status || { confirmed: (tx.confirmations || 0) > 0 },
       timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
-      rbfSignaled: !!tx.rbf_signaled
+      rbfSignaled: !!tx.rbf_signaled,
     };
   }
 }
