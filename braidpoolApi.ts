@@ -1,4 +1,7 @@
-import { BraidPoolTransaction, TransactionCategory } from '../types/transaction';
+import {
+  BraidPoolTransaction,
+  TransactionCategory,
+} from '../types/transaction';
 
 export interface BraidPoolApiConfig {
   baseUrl: string;
@@ -9,7 +12,7 @@ export interface BraidPoolApiConfig {
 const defaultConfig: BraidPoolApiConfig = {
   baseUrl: import.meta.env.VITE_BRAIDPOOL_API_URL || 'http://localhost:3000',
   timeout: 10000,
-  retries: 3
+  retries: 3,
 };
 
 class BraidPoolApiError extends Error {
@@ -62,7 +65,10 @@ class BraidPoolApi {
     this.config = { ...defaultConfig, ...config };
   }
 
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
     const url = `${this.config.baseUrl}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
@@ -73,7 +79,7 @@ class BraidPoolApi {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
           ...options.headers,
         },
       });
@@ -85,7 +91,7 @@ class BraidPoolApi {
         try {
           const errorBody = await response.text();
           if (errorBody) errorMessage += ` - ${errorBody}`;
-        } catch { }
+        } catch {}
         throw new BraidPoolApiError(errorMessage, response.status);
       }
 
@@ -93,25 +99,38 @@ class BraidPoolApi {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error instanceof BraidPoolApiError) throw error;
-      if (error.name === 'AbortError') throw new BraidPoolApiError('Request timeout');
-      throw new BraidPoolApiError(error.message || 'Unknown API error', undefined, error);
+      if (error.name === 'AbortError')
+        throw new BraidPoolApiError('Request timeout');
+      throw new BraidPoolApiError(
+        error.message || 'Unknown API error',
+        undefined,
+        error
+      );
     }
   }
 
-  private async retryRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async retryRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
     let lastError: Error;
     for (let attempt = 0; attempt <= this.config.retries; attempt++) {
       try {
-        console.log(`🔄 BraidPool API Attempt ${attempt + 1}/${this.config.retries + 1}: ${endpoint}`);
+        console.log(
+          `🔄 BraidPool API Attempt ${attempt + 1}/${this.config.retries + 1}: ${endpoint}`
+        );
         const result = await this.makeRequest<T>(endpoint, options);
         console.log(`✅ BraidPool API Success: ${endpoint}`);
         return result;
       } catch (error: any) {
         lastError = error;
-        console.warn(`❌ BraidPool API Attempt ${attempt + 1} failed for ${endpoint}:`, error.message);
+        console.warn(
+          `❌ BraidPool API Attempt ${attempt + 1} failed for ${endpoint}:`,
+          error.message
+        );
         if (attempt < this.config.retries) {
           const delay = Math.pow(2, attempt) * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -119,9 +138,14 @@ class BraidPoolApi {
     throw lastError!;
   }
 
-  async fetchRecentTransactions(limit: number = 10): Promise<BraidPoolTransaction[]> {
-    const transactions = await this.retryRequest<ApiTransaction[]>('/transactions');
-    return transactions.map(tx => this.transformToBraidPoolTransaction(tx)).slice(0, limit);
+  async fetchRecentTransactions(
+    limit: number = 10
+  ): Promise<BraidPoolTransaction[]> {
+    const transactions =
+      await this.retryRequest<ApiTransaction[]>('/transactions');
+    return transactions
+      .slice(0, limit)
+      .map((tx) => this.transformToBraidPoolTransaction(tx));
   }
 
   async fetchMempoolInfo(): Promise<ApiMempoolInfo> {
@@ -129,17 +153,28 @@ class BraidPoolApi {
   }
 
   private normalizeCategory(category?: string): TransactionCategory {
-    const c = (category || '').toLowerCase();
-    if (c.includes('confirm')) return TransactionCategory.CONFIRMED;
-    if (c.includes('schedule')) return TransactionCategory.SCHEDULED;
-    if (c.includes('propose')) return TransactionCategory.PROPOSED;
-    if (c.includes('commit')) return TransactionCategory.COMMITTED;
-    if (c.includes('mempool')) return TransactionCategory.MEMPOOL;
-    if (c.includes('replace')) return TransactionCategory.REPLACED;
-    return TransactionCategory.MEMPOOL;
+    if (!category) return TransactionCategory.MEMPOOL;
+
+    const normalized = category.trim().toLowerCase();
+
+    // Exact match mapping
+    const categoryMap: Record<string, TransactionCategory> = {
+      confirmed: TransactionCategory.CONFIRMED,
+      scheduled: TransactionCategory.SCHEDULED,
+      proposed: TransactionCategory.PROPOSED,
+      committed: TransactionCategory.COMMITTED,
+      mempool: TransactionCategory.MEMPOOL,
+      replaced: TransactionCategory.REPLACED,
+      unconfirmed: TransactionCategory.MEMPOOL, // Explicitly handle unconfirmed
+    };
+
+    return categoryMap[normalized] || TransactionCategory.MEMPOOL;
   }
 
-  private parseWork(work: string | number | null | undefined): { work: number; unit: string } {
+  private parseWork(work: string | number | null | undefined): {
+    work: number;
+    unit: string;
+  } {
     if (work === null || work === undefined) return { work: 0, unit: 'TH' };
     if (typeof work === 'number') return { work, unit: 'TH' };
     const match = work.toString().match(/([\d.]+)\s*([TPE]H)?/i);
@@ -149,7 +184,9 @@ class BraidPoolApi {
     return { work: value, unit };
   }
 
-  private transformToBraidPoolTransaction(tx: ApiTransaction): BraidPoolTransaction {
+  private transformToBraidPoolTransaction(
+    tx: ApiTransaction
+  ): BraidPoolTransaction {
     const { work, unit } = this.parseWork(tx.work);
     return {
       txid: tx.txid,
@@ -168,7 +205,7 @@ class BraidPoolApi {
       vout: tx.vout || [],
       status: tx.status || { confirmed: (tx.confirmations || 0) > 0 },
       timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
-      rbfSignaled: !!tx.rbf_signaled
+      rbfSignaled: !!tx.rbf_signaled,
     };
   }
 }
