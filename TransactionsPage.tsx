@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { braidpoolApi } from '../../utils/braidpoolApi';
 import { BraidPoolTransaction } from '../../types/transaction';
-import { Box, Typography, Grid, Switch, FormControlLabel, Chip, Tooltip } from '@mui/material';
 import TransactionTable from './TransactionTable';
 import TopStatsBar from '../common/TopStatsBar';
-import colors from '../../theme/colors';
 import {
   TRANSACTION_CATEGORY_LABELS,
   TRANSACTION_CATEGORY_DESCRIPTIONS,
@@ -43,137 +41,146 @@ const TransactionsPage: React.FC = () => {
     }
   }, [autoRefresh, fetchTransactions, refreshInterval]);
 
-  const handleAutoRefreshChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAutoRefreshChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     setAutoRefresh(event.target.checked);
   };
 
+  const getCategoryStyles = (category: TransactionCategory): string => {
+    const styles = {
+      [TransactionCategory.MEMPOOL]:
+        'bg-blue-500/10 border-blue-500/20 text-blue-400',
+      [TransactionCategory.COMMITTED]:
+        'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+      [TransactionCategory.PROPOSED]:
+        'bg-green-500/10 border-green-500/20 text-green-400',
+      [TransactionCategory.SCHEDULED]:
+        'bg-yellow-500/10 border-yellow-500/20 text-yellow-400',
+      [TransactionCategory.CONFIRMED]:
+        'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      [TransactionCategory.REPLACED]:
+        'bg-red-500/10 border-red-500/20 text-red-400',
+    };
+    return (
+      styles[category] || 'bg-gray-500/10 border-gray-500/20 text-gray-400'
+    );
+  };
+
   return (
-    <Box sx={{ p: 3, backgroundColor: colors.background, minHeight: '100vh' }}>
-      {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ color: colors.textPrimary, fontWeight: 'bold', mb: 2 }}>
-          Transaction Management
-        </Typography>
-        <Typography variant="body1" sx={{ color: colors.textSecondary, mb: 3 }}>
-          Monitor and analyze Bitcoin transactions across different categories and states
-        </Typography>
+    <div className="min-h-screen bg-gray-950">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Transaction Management
+          </h1>
+          <p className="text-gray-400">
+            Monitor and analyze Bitcoin transactions across different categories
+            and states
+          </p>
+        </header>
 
-        {/* Stats Bar */}
-        <TopStatsBar />
-      </Box>
+        {/* Stats */}
+        <div className="mb-8">
+          <TopStatsBar />
+        </div>
 
-      {/* Transaction Categories Legend */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" sx={{ color: colors.textPrimary, mb: 2, fontWeight: 'bold' }}>
-          Transaction Categories
-        </Typography>
-        <Grid container spacing={2}>
-          {Object.entries(TRANSACTION_CATEGORY_LABELS).map(([key, label]) => {
-            const category = key as TransactionCategory;
-            const getCategoryColor = (cat: TransactionCategory) => {
-              switch (cat) {
-                case TransactionCategory.MEMPOOL: return colors.info;
-                case TransactionCategory.COMMITTED: return colors.primary;
-                case TransactionCategory.PROPOSED: return colors.success;
-                case TransactionCategory.SCHEDULED: return colors.warning;
-                case TransactionCategory.CONFIRMED: return colors.success;
-                case TransactionCategory.REPLACED: return colors.error;
-                default: return colors.textSecondary;
-              }
-            };
+        {/* Categories */}
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Transaction Categories
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {Object.entries(TRANSACTION_CATEGORY_LABELS).map(([key, label]) => {
+              const category = key as TransactionCategory;
+              return (
+                <div
+                  key={category}
+                  className={`p-4 rounded-lg border ${getCategoryStyles(category)} hover:border-opacity-40 transition-colors`}
+                  title={TRANSACTION_CATEGORY_DESCRIPTIONS[category]}
+                >
+                  <div className="font-medium text-sm mb-1">{label}</div>
+                  <p className="text-xs text-gray-500 line-clamp-2">
+                    {TRANSACTION_CATEGORY_DESCRIPTIONS[category]}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-            return (
-              <Grid item xs={12} sm={6} md={4} lg={2} key={category}>
-                <Tooltip title={TRANSACTION_CATEGORY_DESCRIPTIONS[category]} arrow>
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 1,
-                      backgroundColor: colors.paper,
-                      border: `1px solid ${getCategoryColor(category)}20`,
-                      cursor: 'help',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        backgroundColor: `${getCategoryColor(category)}10`,
-                        borderColor: `${getCategoryColor(category)}40`,
-                      },
-                    }}
-                  >
-                    <Chip
-                      label={label}
-                      size="small"
-                      sx={{
-                        backgroundColor: `${getCategoryColor(category)}20`,
-                        color: getCategoryColor(category),
-                        fontWeight: 'bold',
-                        mb: 1,
-                      }}
-                    />
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: colors.textSecondary,
-                        fontSize: '0.75rem',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {TRANSACTION_CATEGORY_DESCRIPTIONS[category]}
-                    </Typography>
-                  </Box>
-                </Tooltip>
-              </Grid>
-            );
-          })}
-        </Grid>
-      </Box>
+        {/* Controls */}
+        <div className="mb-6 bg-gray-900/50 border border-gray-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                Live Transaction Feed
+              </h2>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Real-time updates from your Bitcoin node
+              </p>
+            </div>
 
-      {/* Controls */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h6" sx={{ color: colors.textPrimary, fontWeight: 'bold' }}>
-            Live Transaction Feed
-          </Typography>
-          <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-            Real-time Bitcoin transactions from your node
-          </Typography>
-        </Box>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={autoRefresh}
-              onChange={handleAutoRefreshChange}
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: colors.primary,
-                },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                  backgroundColor: colors.primary,
-                },
-              }}
-            />
-          }
-          label={
-            <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              Auto Refresh
-            </Typography>
-          }
+            {/* Auto Refresh Toggle */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <span className="text-sm text-gray-400">Auto Refresh</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={handleAutoRefreshChange}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-500 peer-focus:ring-offset-2 peer-focus:ring-offset-gray-900 transition-colors">
+                  <div className="absolute top-0.5 left-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-400">{error}</p>
+                <button
+                  onClick={fetchTransactions}
+                  className="text-sm text-red-300 underline mt-2 hover:text-red-200"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        <TransactionTable
+          transactions={transactions}
+          loading={loading}
+          error={error}
+          autoRefresh={autoRefresh}
+          refreshInterval={refreshInterval}
+          maxHeight={700}
         />
-      </Box>
-
-      {/* Transaction Table */}
-      <TransactionTable
-        transactions={transactions}
-        loading={loading}
-        error={error}
-        autoRefresh={autoRefresh}
-        refreshInterval={refreshInterval}
-        maxHeight={700}
-      />
-    </Box>
+      </div>
+    </div>
   );
 };
 
