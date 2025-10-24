@@ -1,109 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Box,
-  Typography,
-  Chip,
-  Tooltip,
-  CircularProgress,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  OutlinedInput,
-  SelectChangeEvent,
-} from '@mui/material';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from '../common/Card';
 import {
   TransactionCategory,
   TRANSACTION_CATEGORY_LABELS,
   TRANSACTION_CATEGORY_DESCRIPTIONS,
-  BraidPoolTransaction
+  BraidPoolTransaction,
 } from '../../types/transaction';
-
-let colors: any = {};
-try {
-  colors = require('../../theme/colors').default || {};
-} catch (error) {
-  console.warn('Could not load colors theme, using fallbacks');
-}
-
-interface TransactionTableProps {
-  transactions: BraidPoolTransaction[];
-  maxHeight?: number;
-  autoRefresh?: boolean;
-  refreshInterval?: number;
-  loading?: boolean;
-  error?: string | null;
-}
-
-const DEFAULT_COLORS = {
-  primary: '#1976d2',
-  secondary: '#ff9800',
-  success: '#4caf50',
-  warning: '#ff9800',
-  error: '#f44336',
-  info: '#2196f3',
-  paper: '#1e1e1e',
-  textPrimary: '#ffffff',
-  textSecondary: '#b0b0b0',
-  accent: '#2196f3',
-  cardAccentPrimary: '#1976d2',
-  grey: '#9e9e9e'
-};
-
-const getSafeColor = (colorPath: string, fallback: string = '#ffffff'): string => {
-  try {
-    const paths = colorPath.split('.');
-    let value = colors;
-
-    for (const path of paths) {
-      if (value && typeof value === 'object' && path in value) {
-        value = value[path];
-      } else {
-        return fallback;
-      }
-    }
-
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object' && value.main) return value.main;
-    if (value && typeof value === 'object' && value[500]) return value[500];
-
-    return fallback;
-  } catch (error) {
-    return fallback;
-  }
-};
-
-const safeColors = {
-  primary: getSafeColor('primary', DEFAULT_COLORS.primary),
-  secondary: getSafeColor('secondary', DEFAULT_COLORS.secondary),
-  success: getSafeColor('success', DEFAULT_COLORS.success),
-  warning: getSafeColor('warning', DEFAULT_COLORS.warning),
-  error: getSafeColor('error', DEFAULT_COLORS.error),
-  info: getSafeColor('info', DEFAULT_COLORS.info),
-  paper: getSafeColor('paper', DEFAULT_COLORS.paper),
-  textPrimary: getSafeColor('textPrimary', DEFAULT_COLORS.textPrimary),
-  textSecondary: getSafeColor('textSecondary', DEFAULT_COLORS.textSecondary),
-  accent: getSafeColor('accent', DEFAULT_COLORS.accent),
-  cardAccentPrimary: getSafeColor('cardAccentPrimary', DEFAULT_COLORS.cardAccentPrimary),
-  grey: getSafeColor('grey', DEFAULT_COLORS.grey)
-};
-
-const CATEGORY_COLORS: Record<TransactionCategory, string> = {
-  [TransactionCategory.MEMPOOL]: safeColors.info,
-  [TransactionCategory.COMMITTED]: safeColors.primary,
-  [TransactionCategory.PROPOSED]: safeColors.success,
-  [TransactionCategory.SCHEDULED]: safeColors.warning,
-  [TransactionCategory.CONFIRMED]: safeColors.success,
-  [TransactionCategory.REPLACED]: safeColors.error,
-};
+import { TransactionTableProps } from './type';
+import {
+  truncateHash,
+  formatFee,
+  formatFeeRate,
+  formatTime,
+  getCategoryColor,
+} from './utils';
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions = [],
@@ -113,44 +23,36 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   autoRefresh = false,
   refreshInterval = 30000,
 }) => {
-  const [categoryFilter, setCategoryFilter] = useState<TransactionCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<TransactionCategory[]>(
+    []
+  );
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const truncateHash = (hash: string) => {
-    if (!hash) return 'N/A';
-    return hash.substring(0, 8) + '...' + hash.substring(hash.length - 8);
-  };
-
-  const formatFee = (fee: number) => {
-    return fee.toFixed(8);
-  };
-
-  const formatFeeRate = (feeRate: number) => {
-    return feeRate.toFixed(1);
-  };
-
-  const formatTime = (timestamp?: number) => {
-    if (!timestamp) return '-';
-    const now = Date.now() / 1000;
-    const diff = now - timestamp;
-
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
-
+  // Close dropdown
   useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        // Refresh handled by parent component
-      }, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, refreshInterval]);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsFilterOpen(false);
+      }
+    };
 
-  const handleCategoryFilterChange = (event: SelectChangeEvent<TransactionCategory[]>) => {
-    const value = event.target.value;
-    setCategoryFilter(typeof value === 'string' ? value.split(',') as TransactionCategory[] : value);
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isFilterOpen]);
+
+  const handleCategoryToggle = (category: TransactionCategory) => {
+    setCategoryFilter((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
   };
 
   const filteredTransactions = transactions.filter((tx) => {
@@ -160,202 +62,210 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   });
 
   return (
-    <Card
-      title="Transaction Table"
-      subtitle={`${filteredTransactions.length} transactions from Bitcoin node`}
-      accentColor={safeColors.cardAccentPrimary}
-    >
-      <Box sx={{ mb: 2 }}>
-        <FormControl sx={{ minWidth: 200 }} size="small">
-          <InputLabel>Category Filter</InputLabel>
-          <Select
-            multiple
-            value={categoryFilter}
-            onChange={handleCategoryFilterChange}
-            input={<OutlinedInput label="Category Filter" />}
-            renderValue={(selected) => (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {selected.map((value) => (
-                  <Chip
-                    key={value}
-                    label={TRANSACTION_CATEGORY_LABELS[value as TransactionCategory] || 'Unknown'}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${CATEGORY_COLORS[value as TransactionCategory] || safeColors.grey}20`,
-                      color: CATEGORY_COLORS[value as TransactionCategory] || safeColors.grey,
-                    }}
-                  />
-                ))}
-              </Box>
-            )}
+    <div className="space-y-4">
+      {/* Filters - OUTSIDE Card to avoid overflow issues */}
+      <div className="flex items-center justify-between px-4">
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:bg-gray-750 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
           >
-            {Object.values(TransactionCategory).map((category) => (
-              <MenuItem key={category} value={category}>
-                <Chip
-                  label={TRANSACTION_CATEGORY_LABELS[category] || 'Unknown'}
-                  size="small"
-                  sx={{
-                    backgroundColor: `${CATEGORY_COLORS[category] || safeColors.grey}20`,
-                    color: CATEGORY_COLORS[category] || safeColors.grey,
-                    mr: 1,
-                  }}
-                />
-                <Tooltip title={TRANSACTION_CATEGORY_DESCRIPTIONS[category] || 'No description available'}>
-                  <Typography variant="body2">{TRANSACTION_CATEGORY_LABELS[category] || 'Unknown'}</Typography>
-                </Tooltip>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
+            {categoryFilter.length === 0
+              ? 'Filter by category'
+              : `${categoryFilter.length} selected`}
+          </button>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <TableContainer
-        sx={{
-          maxHeight: maxHeight,
-          '&::-webkit-scrollbar': {
-            width: '8px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: safeColors.paper,
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: safeColors.primary,
-            borderRadius: '4px',
-          },
-        }}
-      >
-        <Table size="medium" stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold', minWidth: 120 }}>
-                Hash
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold', minWidth: 100 }}>
-                Category
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
-                Size (vB)
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
-                Fee (BTC)
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
-                Fee Rate (sats/vB)
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="center">
-                In/Out
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="center">
-                Confirms
-              </TableCell>
-              <TableCell sx={{ backgroundColor: safeColors.paper, color: safeColors.textPrimary, fontWeight: 'bold' }} align="right">
-                Time
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                  <CircularProgress size={40} />
-                </TableCell>
-              </TableRow>
-            ) : filteredTransactions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4, color: safeColors.textSecondary }}>
-                  No transactions found
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredTransactions.map((transaction: BraidPoolTransaction) => (
-                <TableRow
-                  key={transaction.txid || `tx-${Math.random()}`}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    },
-                    transition: 'background-color 0.2s ease',
-                  }}
-                >
-                  <TableCell sx={{ color: safeColors.accent, fontFamily: 'monospace' }}>
-                    {truncateHash(transaction.txid)}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={transaction.category ? TRANSACTION_CATEGORY_LABELS[transaction.category] || 'Unknown' : 'Unknown'}
-                      size="small"
-                      sx={{
-                        backgroundColor: transaction.category ?
-                          `${CATEGORY_COLORS[transaction.category] || safeColors.grey}20` :
-                          `${safeColors.grey}20`,
-                        color: transaction.category ?
-                          CATEGORY_COLORS[transaction.category] || safeColors.grey :
-                          safeColors.grey,
-                        fontWeight: 'bold',
-                      }}
+          {isFilterOpen && (
+            <div className="absolute left-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+              <div className="p-2 max-h-80 overflow-auto">
+                {Object.values(TransactionCategory).map((category) => (
+                  <label
+                    key={category}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={categoryFilter.includes(category)}
+                      onChange={() => handleCategoryToggle(category)}
+                      className="w-4 h-4 rounded border-gray-600 text-blue-600 focus:ring-blue-500"
                     />
-                  </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.textPrimary, fontFamily: 'monospace' }}>
-                    {transaction.size ? transaction.size.toLocaleString() : '-'}
-                  </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.secondary, fontFamily: 'monospace' }}>
-                    {transaction.fee ? formatFee(transaction.fee) : '-'}
-                  </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.warning, fontFamily: 'monospace' }}>
-                    {transaction.feeRate ? formatFeeRate(transaction.feeRate) : '-'}
-                  </TableCell>
-                  <TableCell align="center" sx={{ color: safeColors.textPrimary }}>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.info }}>
-                      {transaction.inputs || '?'}
-                    </Typography>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.textSecondary, mx: 0.5 }}>
-                      /
-                    </Typography>
-                    <Typography variant="body2" component="span" sx={{ color: safeColors.success }}>
-                      {transaction.outputs || '?'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center" sx={{ color: safeColors.textPrimary }}>
-                    {transaction.confirmations ? (
-                      <Chip
-                        label={transaction.confirmations}
-                        size="small"
-                        color={transaction.confirmations >= 6 ? 'success' : 'warning'}
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
-                        Unconfirmed
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" sx={{ color: safeColors.textSecondary }}>
-                    {formatTime(transaction.timestamp)}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${getCategoryColor(category)}`}
+                    >
+                      {TRANSACTION_CATEGORY_LABELS[category]}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="p-2 border-t border-gray-700">
+                <button
+                  onClick={() => {
+                    setCategoryFilter([]);
+                    setIsFilterOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
-      {!loading && (
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
-            Showing {filteredTransactions.length} of {transactions.length} transactions
-          </Typography>
-          <Typography variant="body2" sx={{ color: safeColors.textSecondary }}>
-            {autoRefresh && `Auto-refresh every ${refreshInterval / 1000}s`}
-          </Typography>
-        </Box>
+        {categoryFilter.length > 0 && (
+          <button
+            onClick={() => setCategoryFilter([])}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="px-4">
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        </div>
       )}
-    </Card>
+
+      {/* Table Card */}
+      <Card
+        title="Transaction Table"
+        subtitle={`${filteredTransactions.length} of ${transactions.length} transactions`}
+        accentColor="#1976d2"
+      >
+        <div
+          className="overflow-auto rounded-lg border border-gray-800"
+          style={{ maxHeight: `${maxHeight}px` }}
+        >
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-gray-900 z-10">
+              <tr className="border-b border-gray-800">
+                <th className="px-4 py-3 text-left font-semibold text-gray-300 text-xs uppercase">
+                  Hash
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-300 text-xs uppercase">
+                  Category
+                </th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-300 text-xs uppercase">
+                  Size
+                </th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-300 text-xs uppercase">
+                  Fee
+                </th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-300 text-xs uppercase">
+                  Fee Rate
+                </th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-300 text-xs uppercase">
+                  I/O
+                </th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-300 text-xs uppercase">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-300 text-xs uppercase">
+                  Time
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center">
+                    <div className="flex justify-center">
+                      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                    No transactions found
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((tx) => (
+                  <tr
+                    key={tx.txid}
+                    className="hover:bg-gray-800/50 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono text-blue-400">
+                      {truncateHash(tx.txid)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          tx.category
+                            ? getCategoryColor(tx.category)
+                            : 'bg-gray-500/10 text-gray-400'
+                        }`}
+                      >
+                        {tx.category
+                          ? TRANSACTION_CATEGORY_LABELS[tx.category]
+                          : 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-white">
+                      {tx.size ? tx.size.toLocaleString() : '-'}
+                      <span className="text-xs text-gray-500 ml-1">vB</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-orange-400">
+                      {tx.fee ? formatFee(tx.fee) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-yellow-400">
+                      {tx.feeRate ? formatFeeRate(tx.feeRate) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center text-white">
+                      <span className="text-blue-400">{tx.inputs || '?'}</span>
+                      <span className="text-gray-600 mx-1">/</span>
+                      <span className="text-green-400">
+                        {tx.outputs || '?'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {tx.confirmations ? (
+                        <span
+                          className={`inline-block px-2 py-1 rounded text-xs font-medium border ${
+                            tx.confirmations >= 6
+                              ? 'border-green-500/30 bg-green-500/10 text-green-400'
+                              : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+                          }`}
+                        >
+                          {tx.confirmations}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-500">Pending</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">
+                      {formatTime(tx.timestamp)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        {!loading && filteredTransactions.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between text-sm text-gray-400">
+            <span>
+              Showing {filteredTransactions.length} of {transactions.length}{' '}
+              transactions
+            </span>
+            {autoRefresh && (
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Auto-refresh every {refreshInterval / 1000}s
+              </span>
+            )}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 };
 
