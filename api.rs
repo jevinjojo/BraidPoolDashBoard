@@ -48,7 +48,7 @@ pub struct ApiMempoolInfo {
     pub total_fee: u64,
     pub fee_histogram: Vec<[f64; 2]>,
 }
-struct StateStore {
+pub(crate) struct StateStore {
     committed: HashSet<Txid>, // Stage 2: In cmempool
     proposed: HashSet<Txid>,  // Stage 3: Marked as proposed
     scheduled: HashSet<Txid>, // Stage 4: Marked as scheduled
@@ -70,7 +70,7 @@ static SEEN: Lazy<Mutex<HashMap<Txid, u64>>> = Lazy::new(|| Mutex::new(HashMap::
 fn connect_to_bitcoind() -> Client {
     Client::new(
         "http://127.0.0.1:18332",
-        Auth::UserPass("jevinrpc1".to_string(), "securepass1231".to_string()),
+        Auth::UserPass("jevinrpc".to_string(), "securepass123".to_string()),
     )
     .expect("Failed to connect to bitcoind_node")
 }
@@ -78,7 +78,7 @@ fn connect_to_bitcoind() -> Client {
 fn connect_to_cmempoold() -> Client {
     Client::new(
         "http://127.0.0.1:19443",
-        Auth::UserPass("cmempoolrpc1".to_string(), "securepass4561".to_string()),
+        Auth::UserPass("cmempoolrpc".to_string(), "securepass456".to_string()),
     )
     .expect("Failed to connect to cmempoold_node")
 }
@@ -260,7 +260,7 @@ pub async fn commit_transaction(Path(txid): Path<String>) -> (StatusCode, Json<s
     };
 
     // Check if already in cmempool
-    if let Ok(_) = committed.get_mempool_entry(&txid) {
+    if committed.get_mempool_entry(&txid).is_ok() {
         STATE.lock().unwrap().committed.insert(txid);
         return (
             StatusCode::OK,
