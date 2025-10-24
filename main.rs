@@ -1,7 +1,6 @@
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use std::error::Error;
 use std::net::SocketAddr;
-use tokio;
 use tower_http::cors::{Any, CorsLayer};
 
 mod api;
@@ -13,11 +12,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Orchestration check
     let standard = Client::new(
         "http://127.0.0.1:18332",
-        Auth::UserPass("jevinrpc1".to_string(), "securepass1231".to_string()),
+        Auth::UserPass("jevinrpc".to_string(), "securepass123".to_string()),
     )?;
     let committed = Client::new(
         "http://127.0.0.1:19443",
-        Auth::UserPass("cmempoolrpc1".to_string(), "securepass4561".to_string()),
+        Auth::UserPass("cmempoolrpc".to_string(), "securepass456".to_string()),
     )?;
 
     println!("Standard node block count: {}", standard.get_block_count()?);
